@@ -101,7 +101,7 @@ def mask_from_landmarks(image, landmarks):
     return mask
 
 class InsightFace:
-    def __init__(self, provider="CPU", name="buffalo_l"):
+    def __init__(self, provider="CPU", name="auraface"):
         self.face_analysis = FaceAnalysis(name=name, root=INSIGHTFACE_DIR, providers=[provider + 'ExecutionProvider',])
         self.face_analysis.prepare(ctx_id=0, det_size=(640, 640))
         self.thresholds = THRESHOLDS["ArcFace"]
@@ -278,31 +278,36 @@ class FaceAnalysisModels:
     def INPUT_TYPES(s):
         libraries = []
         if IS_INSIGHTFACE_INSTALLED:
-            libraries.append("insightface")
             libraries.append("auraface")
+            # libraries.append("insightface")
         if IS_DLIB_INSTALLED:
             libraries.append("dlib")
 
         return {"required": {
-            "library": (libraries, ),
+            "library": (libraries,),
             "provider": (["CPU", "CUDA", "DirectML", "OpenVINO", "ROCM", "CoreML"], ),
         }}
 
-    RETURN_TYPES = ("ANALYSIS_MODELS", )
+    RETURN_TYPES = ("ANALYSIS_MODELS", "FACEANALYSIS")
+    RETURN_NAMES = ("ANALYSIS_MODELS", "RAW_FACEANALYSIS")
     FUNCTION = "load_models"
     CATEGORY = "FaceAnalysis"
 
     def load_models(self, library, provider):
-        out = {}
+        out = InsightFace(provider=provider, name=library)
 
-        if library == "insightface":
-            out = InsightFace(provider=provider)
-        elif library == "auraface":
-            out = InsightFace(provider=provider, name="auraface")
-        else:
-            out = DLib()
+        return (out, out.face_analysis)
 
-        return (out, )
+class DLIBFaceAnalysisModels:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {}
+    RETURN_TYPES = ("ANALYSIS_MODELS", )
+    FUNCTION = "load_models"
+    CATEGORY = "FaceAnalysis"
+    
+    def load_models(self):
+        return (DLib(), )    
 
 class FaceBoundingBox:
     @classmethod

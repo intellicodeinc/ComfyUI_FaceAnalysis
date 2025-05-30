@@ -1,3 +1,14 @@
+
+This repository is a modified version of [original project URL](https://github.com/cubiq/ComfyUI_FaceAnalysis).
+Modifications were made by wonbinK in 2025.
+
+### Changes
+
+- This custom node use only some checkpoint from [AuraFace](https://huggingface.co/fal/AuraFace-v1/tree/main) rather than [InsightFace](https://github.com/deepinsight/insightface) due to license issue.
+- To use the loader node generally (with other custom node), the output of the loader node is changed. 
+
+---
+
 # Face Analysis for ComfyUI
 
 This extension uses [DLib](http://dlib.net/) or [InsightFace](https://github.com/deepinsight/insightface) to perform various operations on human faces.
