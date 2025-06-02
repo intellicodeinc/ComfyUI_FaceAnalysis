@@ -364,7 +364,7 @@ class FaceBoundingBox:
     CATEGORY = "FaceAnalysis"
     OUTPUT_IS_LIST = (True, True, True, True, True,)
 
-    def bbox(self, analysis_models, image, padding, padding_percent, index=-1, order="area"):
+    def bbox(self, analysis_models, image, padding, padding_percent, order, index=-1 ):
         
         order = Order(order)
         
@@ -376,7 +376,7 @@ class FaceBoundingBox:
 
         for i in image:
             i = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB')
-            img, x, y, w, h = analysis_models.get_bbox(i, padding, padding_percent)
+            img, x, y, w, h = analysis_models.get_bbox(i, padding, padding_percent, order)
             if not img:
                 continue
             out_img.extend(img)
