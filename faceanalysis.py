@@ -23,9 +23,18 @@ import os
 import folder_paths
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageColor
+from enum import StrEnum
 
 DLIB_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dlib")
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
+
+class Order(StrEnum):
+    AREA = "area"
+    SCORE = "score"
+    FROM_LEFT_TO_RIGHT = "from_left_to_right"
+    FROM_RIGHT_TO_LEFT = "from_right_to_left"
+    FROM_TOP_TO_BOTTOM = "from_top_to_bottom"
+    FROM_BOTTOM_TO_TOP = "from_bottom_to_top"
 
 THRESHOLDS = { # from DeepFace
         "VGG-Face": {"cosine": 0.68, "euclidean": 1.17, "L2_norm": 1.17},
@@ -106,12 +115,25 @@ class InsightFace:
         self.face_analysis.prepare(ctx_id=0, det_size=(640, 640))
         self.thresholds = THRESHOLDS["ArcFace"]
 
-    def get_face(self, image):
+    def get_face(self, image, order=Order.AREA):
         for size in [(size, size) for size in range(640, 256, -64)]:
             self.face_analysis.det_model.input_size = size
             faces = self.face_analysis.get(image)
             if len(faces) > 0:
-                return sorted(faces, key=lambda x:(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]), reverse=True)
+                if order == Order.AREA:
+                    return sorted(faces, key=lambda x:(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]), reverse=True)
+                elif order == Order.SCORE:
+                    return sorted(faces, key=lambda x:x['score'], reverse=True)
+                elif order == Order.FROM_LEFT_TO_RIGHT:
+                    return sorted(faces, key=lambda x:x['bbox'][0], reverse=False)
+                elif order == Order.FROM_RIGHT_TO_LEFT:
+                    return sorted(faces, key=lambda x:x['bbox'][0], reverse=True)
+                elif order == Order.FROM_TOP_TO_BOTTOM:
+                    return sorted(faces, key=lambda x:x['bbox'][1], reverse=False)
+                elif order == Order.FROM_BOTTOM_TO_TOP:
+                    return sorted(faces, key=lambda x:x['bbox'][1], reverse=True)
+                else:
+                    raise ValueError(f"Invalid order: {order}")
         return None
 
     def get_embeds(self, image):
@@ -120,8 +142,8 @@ class InsightFace:
             face = face[0].normed_embedding
         return face
     
-    def get_bbox(self, image, padding=0, padding_percent=0):
-        faces = self.get_face(np.array(image))
+    def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA):
+        faces = self.get_face(np.array(image), order)
         img = []
         x = []
         y = []
@@ -191,12 +213,25 @@ class DLib:
         self.face_recognition = dlib.face_recognition_model_v1(os.path.join(DLIB_DIR, "dlib_face_recognition_resnet_model_v1.dat"))
         self.thresholds = THRESHOLDS["Dlib"]
 
-    def get_face(self, image):
+    def get_face(self, image, order):
         faces = self.face_detector(np.array(image), 1)
         #faces, scores, _ = self.face_detector.run(np.array(image), 1, -1)
         
         if len(faces) > 0:
-            return sorted(faces, key=lambda x: x.area(), reverse=True)
+            if order == Order.AREA:
+                return sorted(faces, key=lambda x: x.area(), reverse=True)
+            elif order == Order.SCORE:
+                return sorted(faces, key=lambda x: x.score, reverse=True)
+            elif order == Order.FROM_LEFT_TO_RIGHT:
+                return sorted(faces, key=lambda x: x.left(), reverse=False)
+            elif order == Order.FROM_RIGHT_TO_LEFT:
+                return sorted(faces, key=lambda x: x.left(), reverse=True)
+            elif order == Order.FROM_TOP_TO_BOTTOM:
+                return sorted(faces, key=lambda x: x.top(), reverse=False)
+            elif order == Order.FROM_BOTTOM_TO_TOP:
+                return sorted(faces, key=lambda x: x.top(), reverse=True)
+            else:
+                raise ValueError(f"Invalid order: {order}")
             #return [face for _, face in sorted(zip(scores, faces), key=lambda x: x[0], reverse=True)] # sort by score
         return None
 
@@ -207,8 +242,8 @@ class DLib:
             faces = np.array(self.face_recognition.compute_face_descriptor(image, shape))
         return faces
     
-    def get_bbox(self, image, padding=0, padding_percent=0):
-        faces = self.get_face(image)
+    def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA):
+        faces = self.get_face(image, order)
         img = []
         x = []
         y = []
@@ -319,6 +354,7 @@ class FaceBoundingBox:
                 "padding": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
                 "padding_percent": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
                 "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
+                "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
             },
         }
 
@@ -328,7 +364,10 @@ class FaceBoundingBox:
     CATEGORY = "FaceAnalysis"
     OUTPUT_IS_LIST = (True, True, True, True, True,)
 
-    def bbox(self, analysis_models, image, padding, padding_percent, index=-1):
+    def bbox(self, analysis_models, image, padding, padding_percent, index=-1, order="area"):
+        
+        order = Order(order)
+        
         out_img = []
         out_x = []
         out_y = []
