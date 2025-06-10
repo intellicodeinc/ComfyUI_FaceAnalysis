@@ -148,7 +148,7 @@ def get_square(x1, y1, x2, y2, square) -> Tuple[int, int, int, int]:
         y1 = int(cy-value/2)
         y2 = int(cy+value/2)
     
-        return x1, y1, x2, y2
+    return x1, y1, x2, y2
         
 class InsightFace:
     def __init__(self, provider="CPU", name="auraface"):
