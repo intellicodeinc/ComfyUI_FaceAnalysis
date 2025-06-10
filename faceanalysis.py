@@ -15,6 +15,7 @@ except ImportError:
 if not IS_DLIB_INSTALLED and not IS_INSIGHTFACE_INSTALLED:
     raise Exception("Please install either dlib or insightface to use this node.")
 
+from typing import Tuple
 import torch
 import torch.nn.functional as F
 import torchvision.transforms.v2 as T
@@ -35,6 +36,14 @@ class Order(StrEnum):
     FROM_RIGHT_TO_LEFT = "from_right_to_left"
     FROM_TOP_TO_BOTTOM = "from_top_to_bottom"
     FROM_BOTTOM_TO_TOP = "from_bottom_to_top"
+
+class Square(StrEnum):
+    NONE = "None"
+    SHORTEST = "Shortest"
+    LONGEST = "Longest"
+    WIDTH = "Width"
+    HEIGHT = "Height"
+
 
 THRESHOLDS = { # from DeepFace
         "VGG-Face": {"cosine": 0.68, "euclidean": 1.17, "L2_norm": 1.17},
@@ -109,6 +118,21 @@ def mask_from_landmarks(image, landmarks):
 
     return mask
 
+def get_square(width, height, square) -> Tuple[int, int]:
+    
+    if square == Square.SHORTEST:
+        min_value =  min(width, height)
+        return min_value, min_value
+    elif square == Square.LONGEST:
+        max_value = max(width, height)
+        return max_value, max_value
+    elif square == Square.HEIGHT:
+        return height, height
+    elif square == Square.WIDTH:
+        return width, width
+    else:
+        return width, height
+        
 class InsightFace:
     def __init__(self, provider="CPU", name="auraface"):
         self.face_analysis = FaceAnalysis(name=name, root=INSIGHTFACE_DIR, providers=[provider + 'ExecutionProvider',])
@@ -142,7 +166,7 @@ class InsightFace:
             face = face[0].normed_embedding
         return face
     
-    def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA):
+    def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA, square = Square.NONE):
         faces = self.get_face(np.array(image), order)
         img = []
         x = []
@@ -155,6 +179,9 @@ class InsightFace:
             x1, y1, x2, y2 = face['bbox']
             width = x2 - x1
             height = y2 - y1
+            
+            width, height = get_square(width, height, square)
+            
             x1 = int(max(0, x1 - int(width * padding_percent) - padding))
             y1 = int(max(0, y1 - int(height * padding_percent) - padding))
             x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
@@ -242,7 +269,7 @@ class DLib:
             faces = np.array(self.face_recognition.compute_face_descriptor(image, shape))
         return faces
     
-    def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA):
+    def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA, square = Square.NONE):
         faces = self.get_face(image, order)
         img = []
         x = []
@@ -252,10 +279,15 @@ class DLib:
         if faces is None:
             return (img, x, y, w, h)
         for face in faces:
-            x1 = max(0, face.left() - int(face.width() * padding_percent) - padding)
-            y1 = max(0, face.top() - int(face.height() * padding_percent) - padding)
-            x2 = min(image.width, face.right() + int(face.width() * padding_percent) + padding)
-            y2 = min(image.height, face.bottom() + int(face.height() * padding_percent) + padding)
+            
+            width, height = face.width(), face.height()
+            
+            width, height = get_square(width, height, square)
+                        
+            x1 = max(0, face.left() - int(width * padding_percent) - padding)
+            y1 = max(0, face.top() - int(height * padding_percent) - padding)
+            x2 = min(image.width, face.right() + int(width * padding_percent) + padding)
+            y2 = min(image.height, face.bottom() + int(height * padding_percent) + padding)
             crop = image.crop((x1, y1, x2, y2))
             img.append(T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0))
             x.append(x1)
@@ -355,6 +387,7 @@ class FaceBoundingBox:
                 "padding_percent": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
                 "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
                 "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
+                "square": (["None", "Shortest", "Longest", "Width", "Height"])
             },
         }
 
@@ -364,8 +397,9 @@ class FaceBoundingBox:
     CATEGORY = "FaceAnalysis"
     OUTPUT_IS_LIST = (True, True, True, True, True,)
 
-    def bbox(self, analysis_models, image, padding, padding_percent, order, index=-1 ):
+    def bbox(self, analysis_models, image, padding, padding_percent, order, square, index=-1 ):
         
+        square = Square(square)
         order = Order(order)
         
         out_img = []
@@ -376,9 +410,10 @@ class FaceBoundingBox:
 
         for i in image:
             i = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB')
-            img, x, y, w, h = analysis_models.get_bbox(i, padding, padding_percent, order)
+            img, x, y, w, h = analysis_models.get_bbox(i, padding, padding_percent, order, square)
             if not img:
                 continue
+            
             out_img.extend(img)
             out_x.extend(x)
             out_y.extend(y)
