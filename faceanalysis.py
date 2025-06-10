@@ -118,20 +118,37 @@ def mask_from_landmarks(image, landmarks):
 
     return mask
 
-def get_square(width, height, square) -> Tuple[int, int]:
+def get_square(x1, y1, x2, y2, square) -> Tuple[int, int, int, int]:
     
-    if square == Square.SHORTEST:
-        min_value =  min(width, height)
-        return min_value, min_value
-    elif square == Square.LONGEST:
-        max_value = max(width, height)
-        return max_value, max_value
-    elif square == Square.HEIGHT:
-        return height, height
-    elif square == Square.WIDTH:
-        return width, width
+    if square == Square.NONE:
+        pass
+
     else:
-        return width, height
+    
+        width = x2-x1
+        height = y2-y1
+        
+        cx = (x2+x1) / 2
+        cy = (y2+y1) / 2
+        
+        if square == Square.SHORTEST:
+            value = min(width, height)        
+        elif square == Square.LONGEST:
+            value = max(width, height)    
+        elif square == Square.HEIGHT:
+            value = height
+        elif square == Square.WIDTH:
+            value = width
+        else:
+            print(f"Warning : Unexpected Value [{square}]")
+            return x1, y1, x2, y2
+            
+        x1 = int(cx-value/2)
+        x2 = int(cx+value/2)
+        y1 = int(cy-value/2)
+        y2 = int(cy+value/2)
+    
+        return x1, y1, x2, y2
         
 class InsightFace:
     def __init__(self, provider="CPU", name="auraface"):
@@ -177,11 +194,10 @@ class InsightFace:
             return (img, x, y, w, h)
         for face in faces:
             x1, y1, x2, y2 = face['bbox']
+            x1, y1, x2, y2 = get_square(x1, y1, x2, y2, square)
+
             width = x2 - x1
             height = y2 - y1
-            
-            width, height = get_square(width, height, square)
-            
             x1 = int(max(0, x1 - int(width * padding_percent) - padding))
             y1 = int(max(0, y1 - int(height * padding_percent) - padding))
             x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
@@ -280,14 +296,15 @@ class DLib:
             return (img, x, y, w, h)
         for face in faces:
             
-            width, height = face.width(), face.height()
+            x1, y1, x2, y2 = face.left(), face.top(), face.right(), face.bottom()
+            x1, y1, x2, y2 = get_square(x1, y1, x2, y2, square)
             
-            width, height = get_square(width, height, square)
+            width, height = x2-x1, y2-y1
                         
-            x1 = max(0, face.left() - int(width * padding_percent) - padding)
-            y1 = max(0, face.top() - int(height * padding_percent) - padding)
-            x2 = min(image.width, face.right() + int(width * padding_percent) + padding)
-            y2 = min(image.height, face.bottom() + int(height * padding_percent) + padding)
+            x1 = max(0, x1 - int(width * padding_percent) - padding)
+            y1 = max(0, y1 - int(height * padding_percent) - padding)
+            x2 = min(image.width, x2 + int(width * padding_percent) + padding)
+            y2 = min(image.height, y2 + int(height * padding_percent) + padding)
             crop = image.crop((x1, y1, x2, y2))
             img.append(T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0))
             x.append(x1)
