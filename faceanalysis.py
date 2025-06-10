@@ -387,7 +387,7 @@ class FaceBoundingBox:
                 "padding_percent": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
                 "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
                 "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
-                "square": (["None", "Shortest", "Longest", "Width", "Height"])
+                "square": (["None", "Shortest", "Longest", "Width", "Height"], {"default" : "None"})
             },
         }
 
