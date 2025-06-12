@@ -159,7 +159,7 @@ def get_square(x1, y1, x2, y2, square) -> Tuple[int, int, int, int]:
 
 
 def get_paddings(padding, padding_percent) -> Tuple[Tuple[int, int, int, int], Tuple[float, float, float, float]]:
-    
+    # 
     paddings = None
     padding_percents = None
     
@@ -538,7 +538,7 @@ class FaceBoundingBoxWH:
 
         for i in image:
             i = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB')
-            img, x, y, w, h = analysis_models.get_bbox(i, [padding_vertical, padding_horizontal], [padding_percent_vertical, padding_percent_horizontal], order, square)
+            img, x, y, w, h = analysis_models.get_bbox(i, [padding_horizontal, padding_vertical], [padding_percent_horizontal, padding_percent_vertical], order, square)
             if not img:
                 continue
             
