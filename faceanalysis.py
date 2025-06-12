@@ -25,6 +25,10 @@ import folder_paths
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 from enum import StrEnum
+from collections import namedtuple
+
+Padding = namedtuple("Padding", ["x1", "y1", "x2", "y2"])
+PaddingPercent = namedtuple("PaddingPercent", ["x1", "y1", "x2", "y2"])
 
 DLIB_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dlib")
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
@@ -151,7 +155,40 @@ def get_square(x1, y1, x2, y2, square) -> Tuple[int, int, int, int]:
         assert (x2-x1) == (y2-y1), f"Width and height are not equal: {x2-x1} != {y2-y1}"
     
     return x1, y1, x2, y2
-        
+
+
+
+def get_paddings(padding, padding_percent) -> Tuple[Tuple[int, int, int, int], Tuple[float, float, float, float]]:
+    
+    paddings = None
+    padding_percents = None
+    
+    if isinstance(padding, int):
+        paddings = (padding, padding, padding, padding)
+    elif isinstance(padding, (tuple, list)):
+        if len(padding) == 1: # padding
+            paddings = (padding[0], padding[0], padding[0], padding[0])
+        elif len(padding) == 2: # padding_width, padding_height
+            paddings = (padding[0], padding[1], padding[0], padding[1])
+        elif len(padding) == 4: # padding_left, padding_top, padding_right, padding_bottom
+            paddings = padding
+        else:
+            raise ValueError(f"Invalid padding: {padding}")
+
+    if isinstance(padding_percent, float):
+        padding_percents = (padding_percent, padding_percent, padding_percent, padding_percent)
+    elif isinstance(padding_percent, (tuple, list)):
+        if len(padding_percent) == 1: # padding_percent
+            padding_percents = (padding_percent[0], padding_percent[0], padding_percent[0], padding_percent[0])
+        elif len(padding_percent) == 2: # padding_percent_width, padding_percent_height
+            padding_percents = (padding_percent[0], padding_percent[1], padding_percent[0], padding_percent[1])
+        elif len(padding_percent) == 4: # padding_percent_left, padding_percent_top, padding_percent_right, padding_percent_bottom
+            padding_percents = padding_percent
+        else:
+            raise ValueError(f"Invalid padding_percent: {padding_percent}")
+
+    return Padding(*paddings), PaddingPercent(*padding_percents)
+    
 class InsightFace:
     def __init__(self, provider="CPU", name="auraface"):
         self.face_analysis = FaceAnalysis(name=name, root=INSIGHTFACE_DIR, providers=[provider + 'ExecutionProvider',])
@@ -186,7 +223,8 @@ class InsightFace:
         return face
     
     def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA, square = Square.NONE):
-        faces = self.get_face(np.array(image), order)
+        faces = self.get_face(np.array(image), order)      
+        paddings, padding_percents = get_paddings(padding, padding_percent)
         img = []
         x = []
         y = []
@@ -200,17 +238,17 @@ class InsightFace:
 
             width = x2 - x1
             height = y2 - y1
-            x1 = int(max(0, x1 - int(width * padding_percent) - padding))
-            y1 = int(max(0, y1 - int(height * padding_percent) - padding))
-            x2 = int(min(image.width, x2 + int(width * padding_percent) + padding))
-            y2 = int(min(image.height, y2 + int(height * padding_percent) + padding))
+            x1 = int(max(0, x1 - int(width * padding_percents.x1) - paddings.x1))
+            y1 = int(max(0, y1 - int(height * padding_percents.y1) - paddings.y1))
+            x2 = int(min(image.width, x2 + int(width * padding_percents.x2) + paddings.x2))
+            y2 = int(min(image.height, y2 + int(height * padding_percents.y2) + paddings.y2))
             crop = image.crop((x1, y1, x2, y2))
             img.append(T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0))
             x.append(x1)
             y.append(y1)
             w.append(x2 - x1)
             h.append(y2 - y1)
-        return (img, x, y, w, h)
+        return (img, x, y, w, h)   
     
     def get_keypoints(self, image):
         face = self.get_face(image)
@@ -289,6 +327,7 @@ class DLib:
     
     def get_bbox(self, image, padding=0, padding_percent=0, order=Order.AREA, square = Square.NONE):
         faces = self.get_face(image, order)
+        paddings, padding_percents = get_paddings(padding, padding_percent)
         img = []
         x = []
         y = []
@@ -303,10 +342,10 @@ class DLib:
             
             width, height = x2-x1, y2-y1
                         
-            x1 = max(0, x1 - int(width * padding_percent) - padding)
-            y1 = max(0, y1 - int(height * padding_percent) - padding)
-            x2 = min(image.width, x2 + int(width * padding_percent) + padding)
-            y2 = min(image.height, y2 + int(height * padding_percent) + padding)
+            x1 = max(0, x1 - int(width * padding_percents.x1) - paddings.x1)
+            y1 = max(0, y1 - int(height * padding_percents.y1) - paddings.y1)
+            x2 = min(image.width, x2 + int(width * padding_percents.x2) + paddings.x2)
+            y2 = min(image.height, y2 + int(height * padding_percents.y2) + paddings.y2)
             crop = image.crop((x1, y1, x2, y2))
             img.append(T.ToTensor()(crop).permute(1, 2, 0).unsqueeze(0))
             x.append(x1)
@@ -462,6 +501,151 @@ class FaceBoundingBox:
             #out_img = torch.stack(out_img)
         
         return (out_img, out_x, out_y, out_w, out_h,)
+
+class FaceBoundingBoxWH:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "analysis_models": ("ANALYSIS_MODELS", ),
+                "image": ("IMAGE", ),
+                "padding_vertical": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
+                "padding_horizontal": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
+                "padding_percent_vertical": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent_horizontal": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
+                "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
+                "square": (["None", "Shortest", "Longest", "Width", "Height"], {"default" : "None"})
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "INT", "INT", "INT", "INT")
+    RETURN_NAMES = ("IMAGE", "x", "y", "width", "height")
+    FUNCTION = "bbox"
+    CATEGORY = "FaceAnalysis"
+    OUTPUT_IS_LIST = (True, True, True, True, True,)
+
+    def bbox(self, analysis_models, image, padding_vertical, padding_horizontal, padding_percent_vertical, padding_percent_horizontal, order, square, index=-1 ):
+        
+        square = Square(square)
+        order = Order(order)
+        
+        out_img = []
+        out_x = []
+        out_y = []
+        out_w = []
+        out_h = []
+
+        for i in image:
+            i = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB')
+            img, x, y, w, h = analysis_models.get_bbox(i, [padding_vertical, padding_horizontal], [padding_percent_vertical, padding_percent_horizontal], order, square)
+            if not img:
+                continue
+            
+            out_img.extend(img)
+            out_x.extend(x)
+            out_y.extend(y)
+            out_w.extend(w)
+            out_h.extend(h)
+
+        if not out_img:
+            raise Exception('No face detected in image.')
+
+        if len(out_img) == 1:
+            index = 0
+
+        if index > len(out_img) - 1:
+            index = len(out_img) - 1
+
+        if index != -1:
+            out_img = [out_img[index]]
+            out_x = [out_x[index]]
+            out_y = [out_y[index]]
+            out_w = [out_w[index]]
+            out_h = [out_h[index]]
+        #else:
+        #    w = out_img[0].shape[1]
+        #    h = out_img[0].shape[0]
+
+            #out_img = [comfy.utils.common_upscale(img.unsqueeze(0).movedim(-1,1), w, h, "bilinear", "center").movedim(1,-1).squeeze(0) for img in out_img]
+            #out_img = torch.stack(out_img)
+        
+        return (out_img, out_x, out_y, out_w, out_h,)
+
+class FaceBoundingBoxXY:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "analysis_models": ("ANALYSIS_MODELS", ),
+                "image": ("IMAGE", ),
+                "padding_top": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
+                "padding_left": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
+                "padding_right": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
+                "padding_bottom": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
+                "padding_percent_top": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent_left": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent_right": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent_bottom": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
+                "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
+                "square": (["None", "Shortest", "Longest", "Width", "Height"], {"default" : "None"})
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "INT", "INT", "INT", "INT")
+    RETURN_NAMES = ("IMAGE", "x", "y", "width", "height")
+    FUNCTION = "bbox"
+    CATEGORY = "FaceAnalysis"
+    OUTPUT_IS_LIST = (True, True, True, True, True,)
+
+    def bbox(self, analysis_models, image, padding_top, padding_left, padding_right, padding_bottom, padding_percent_top, padding_percent_left, padding_percent_right, padding_percent_bottom, order, square, index=-1 ):
+        
+        square = Square(square)
+        order = Order(order)
+        
+        out_img = []
+        out_x = []
+        out_y = []
+        out_w = []
+        out_h = []
+
+        for i in image:
+            i = T.ToPILImage()(i.permute(2, 0, 1)).convert('RGB')
+            img, x, y, w, h = analysis_models.get_bbox(i, [padding_left, padding_top, padding_right, padding_bottom], [padding_percent_left, padding_percent_top, padding_percent_right, padding_percent_bottom], order, square)
+            if not img:
+                continue
+            
+            out_img.extend(img)
+            out_x.extend(x)
+            out_y.extend(y)
+            out_w.extend(w)
+            out_h.extend(h)
+
+        if not out_img:
+            raise Exception('No face detected in image.')
+
+        if len(out_img) == 1:
+            index = 0
+
+        if index > len(out_img) - 1:
+            index = len(out_img) - 1
+
+        if index != -1:
+            out_img = [out_img[index]]
+            out_x = [out_x[index]]
+            out_y = [out_y[index]]
+            out_w = [out_w[index]]
+            out_h = [out_h[index]]
+        #else:
+        #    w = out_img[0].shape[1]
+        #    h = out_img[0].shape[0]
+
+            #out_img = [comfy.utils.common_upscale(img.unsqueeze(0).movedim(-1,1), w, h, "bilinear", "center").movedim(1,-1).squeeze(0) for img in out_img]
+            #out_img = torch.stack(out_img)
+        
+        return (out_img, out_x, out_y, out_w, out_h,)
+
 
 class FaceEmbedDistance:
     @classmethod
@@ -909,6 +1093,8 @@ NODE_CLASS_MAPPINGS = {
     "FaceEmbedDistance": FaceEmbedDistance,
     "FaceAnalysisModels": FaceAnalysisModels,
     "FaceBoundingBox": FaceBoundingBox,
+    "FaceBoundingBoxWH": FaceBoundingBoxWH,
+    "FaceBoundingBoxXY": FaceBoundingBoxXY,
     "FaceAlign": FaceAlign,
     "FaceSegmentation": faceSegmentation,
     "FaceWarp": FaceWarp,
@@ -918,6 +1104,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FaceEmbedDistance": "Face Embeds Distance",
     "FaceAnalysisModels": "Face Analysis Models",
     "FaceBoundingBox": "Face Bounding Box",
+    "FaceBoundingBoxWH": "Face Bounding Box (WH)",
+    "FaceBoundingBoxXY": "Face Bounding Box (XY)",
     "FaceAlign": "Face Align",
     "FaceSegmentation": "Face Segmentation",
     "FaceWarp": "Face Warp",
