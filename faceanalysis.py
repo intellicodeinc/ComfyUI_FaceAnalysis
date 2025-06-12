@@ -125,8 +125,8 @@ def get_square(x1, y1, x2, y2, square) -> Tuple[int, int, int, int]:
 
     else:
     
-        width = x2-x1
-        height = y2-y1
+        width = int(x2-x1)
+        height = int(y2-y1)
         
         cx = (x2+x1) / 2
         cy = (y2+y1) / 2
@@ -144,9 +144,11 @@ def get_square(x1, y1, x2, y2, square) -> Tuple[int, int, int, int]:
             return x1, y1, x2, y2
             
         x1 = int(cx-value/2)
-        x2 = int(cx+value/2)
+        x2 = x1 + value
         y1 = int(cy-value/2)
-        y2 = int(cy+value/2)
+        y2 = y1 + value
+    
+        assert (x2-x1) == (y2-y1), f"Width and height are not equal: {x2-x1} != {y2-y1}"
     
     return x1, y1, x2, y2
         
