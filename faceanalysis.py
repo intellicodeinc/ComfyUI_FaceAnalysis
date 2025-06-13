@@ -29,6 +29,7 @@ from collections import namedtuple
 
 Padding = namedtuple("Padding", ["x1", "y1", "x2", "y2"])
 PaddingPercent = namedtuple("PaddingPercent", ["x1", "y1", "x2", "y2"])
+PADDINGPERCENT_MAX = 10.0
 
 DLIB_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dlib")
 INSIGHTFACE_DIR = os.path.join(folder_paths.models_dir, "insightface")
@@ -442,7 +443,7 @@ class FaceBoundingBox:
                 "analysis_models": ("ANALYSIS_MODELS", ),
                 "image": ("IMAGE", ),
                 "padding": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
-                "padding_percent": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
                 "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
                 "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
                 "square": (["None", "Shortest", "Longest", "Width", "Height"], {"default" : "None"})
@@ -511,8 +512,8 @@ class FaceBoundingBoxWH:
                 "image": ("IMAGE", ),
                 "padding_vertical": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
                 "padding_horizontal": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
-                "padding_percent_vertical": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
-                "padding_percent_horizontal": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent_vertical": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
+                "padding_percent_horizontal": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
                 "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
                 "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
                 "square": (["None", "Shortest", "Longest", "Width", "Height"], {"default" : "None"})
@@ -583,10 +584,10 @@ class FaceBoundingBoxXY:
                 "padding_left": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
                 "padding_right": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
                 "padding_bottom": ("INT", { "default": 0, "min": 0, "max": 4096, "step": 1 }),
-                "padding_percent_top": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
-                "padding_percent_left": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
-                "padding_percent_right": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
-                "padding_percent_bottom": ("FLOAT", { "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05 }),
+                "padding_percent_top": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
+                "padding_percent_left": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
+                "padding_percent_right": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
+                "padding_percent_bottom": ("FLOAT", { "default": 0.0, "min": 0.0, "max": PADDINGPERCENT_MAX, "step": 0.05 }),
                 "index": ("INT", { "default": -1, "min": -1, "max": 4096, "step": 1 }),
                 "order": (["area", "score", "from_left_to_right", "from_right_to_left", "from_top_to_bottom", "from_bottom_to_top"], {"default": "area"}),
                 "square": (["None", "Shortest", "Longest", "Width", "Height"], {"default" : "None"})
